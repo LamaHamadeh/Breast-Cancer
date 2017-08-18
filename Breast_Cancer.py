@@ -71,6 +71,42 @@ prediction = Knn.predict(example_measures)
 print('Prediction of the measures is: ', prediction)
 
 #-------------------------------
-# Plotting and visualisation
+#Plotting and visualisation (focus on only two features from the dataset)
 
-print ("Plotting...")
+X1 = np.array(df[['Single_Epi_Cell_Size','Mar_Adhesion']]) #choose only two features
+Y = np.array(df['Class']) #the label of the dataset
+
+h = .02  # step size in the mesh
+ 
+# Create color maps
+cmap_light = ListedColormap(['#FFAAAA', '#AAAAFF'])
+cmap_bold = ListedColormap(['#FF0000', '#0000FF'])
+
+
+# apply Neighbours Classifier and fit the data.
+X_train, X_test, Y_train, Y_test = train_test_split (X1, Y, test_size=0.5, random_state = 7)
+Knn = KNeighborsClassifier(n_neighbors = 15)
+Knn.fit(X1, Y)
+ 
+# Plot the decision boundary. For that, we will assign a color to each
+# point in the mesh [x_min, m_max]x[y_min, y_max].
+x_min, x_max = X1[:, 0].min() - 1, X1[:, 0].max() + 1
+y_min, y_max = X1[:, 1].min() - 1, X1[:, 1].max() + 1
+xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+Z = Knn.predict(np.c_[xx.ravel(), yy.ravel()])
+ 
+# Put the result into a color plot
+Z = Z.reshape(xx.shape)
+plt.figure()
+plt.pcolormesh(xx, yy, Z, cmap=cmap_light)
+ 
+# Plot also the training points
+plt.scatter(X1[:, 0], X1[:, 1], c=Y, cmap=cmap_bold)
+plt.xlim(xx.min(), xx.max())
+plt.ylim(yy.min(), yy.max())
+plt.xlabel('Single_Epi_Cell_Size')
+plt.ylabel('Mar_Adhesion')
+plt.title('K = 15')
+
+plt.show()
+#-------------------------------
