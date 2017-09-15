@@ -33,6 +33,12 @@ df.drop(['id'], axis = 1, inplace = True) #this is an unwanted data and remove i
 #will increase the effiency and the accuracy of the classifier       
 
 print(df.head())
+
+B = df[(df.Class == 2)] #this is the Benign sub-dataset
+print('Benign: ', len(B), ',', (100*len(B))/len(df),'%')
+
+M = df[(df.Class == 4)]#this is the Malignant sub-dataset
+print('Malignant: ', len(M), ',', (100*len(M))/len(df),'%')
 #-------------------------------
 
 #apply the K nearest neighbor classifier
