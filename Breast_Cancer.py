@@ -34,10 +34,11 @@ df.drop(['id'], axis = 1, inplace = True) #this is an unwanted data and remove i
 
 print(df.head())
 
-B = df[(df.Class == 2)] #this is the Benign sub-dataset
+#Class distribution
+B = df[(df.Class == 2)] #Benign sub-dataset
 print('Benign: ', len(B), ',', (100*len(B))/len(df),'%')
 
-M = df[(df.Class == 4)]#this is the Malignant sub-dataset
+M = df[(df.Class == 4)]#Malignant sub-dataset
 print('Malignant: ', len(M), ',', (100*len(M))/len(df),'%')
 #-------------------------------
 
