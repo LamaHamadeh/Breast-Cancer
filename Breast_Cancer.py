@@ -1,119 +1,223 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Aug 18 10:20:40 2017
+Created on Tue Dec 26 21:49:09 2017
 
 @author: lamahamadeh
 """
 
-import numpy as np
+import random, math
 import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib import style #style
+import numpy as np
+import scipy.io
+
+from mpl_toolkits.mplot3d import Axes3D
+
+from sklearn.decomposition import PCA
+from sklearn import manifold
+
 from matplotlib.colors import ListedColormap
-from sklearn.cross_validation import train_test_split
-from sklearn.neighbors import KNeighborsClassifier
+import matplotlib.pyplot as plt
+import matplotlib
 
-#load/clean/organise the data
+#------------------------------------
+# If you'd like to try this lab with PCA instead of Isomap,
+# as the dimensionality reduction technique:
+Test_PCA = False
 
-df = pd.read_csv('/Users/lamahamadeh/Desktop/breast-cancer-data.txt')
-df.columns = ['id', 'Clump_Thick', 'Uniform_Cell_Size', 'Uniform_Cell_Shape', 
-              'Mar_Adhesion', 'Single_Epi_Cell_Size', 'Bare_Nuclei', 
-              'Bland_Chromatin', 'Norm_Nucleoli', 'Mitoses', 'Class']
-              
-df.replace('?', -9999, inplace = True) #here we put -9999 to let the algorithm 
-#treat the missing values as outliers. Other way is to use df.dropna to get 
-#rid of them. This depends on your preference and on your data.  
 
-print (df.dtypes)
+def plotDecisionBoundary(model, X, y):
+  print ("Plotting...")
+  matplotlib.style.use('ggplot') # Look Pretty
+
+  fig = plt.figure()
+  ax = fig.add_subplot(111)
+
+  padding = 0.1
+  resolution = 0.1
+
+  #(2 for benign, 4 for malignant)
+  colors = {2:'royalblue',4:'lightsalmon'} 
+
+  
+  # Calculate the boundaris
+  x_min, x_max = X[:, 0].min(), X[:, 0].max()
+  y_min, y_max = X[:, 1].min(), X[:, 1].max()
+  x_range = x_max - x_min
+  y_range = y_max - y_min
+  x_min -= x_range * padding
+  y_min -= y_range * padding
+  x_max += x_range * padding
+  y_max += y_range * padding
+
+  # Create a 2D Grid Matrix. The values stored in the matrix
+  # are the predictions of the class at at said location
+  xx, yy = np.meshgrid(np.arange(x_min, x_max, resolution),
+                       np.arange(y_min, y_max, resolution))
+
+  # What class does the classifier say?
+  Z = model.predict(np.c_[xx.ravel(), yy.ravel()])
+  Z = Z.reshape(xx.shape)
+
+  # Plot the contour map
+  plt.contourf(xx, yy, Z, cmap=plt.cm.seismic)
+  plt.axis('tight')
+
+  # Plot your testing points as well...
+  for label in np.unique(y):
+    indices = np.where(y == label)
+    plt.scatter(X[indices, 0], X[indices, 1], c=colors[label], alpha=0.8)
+
+  p = model.get_params()
+  plt.title('K = ' + str(p['n_neighbors']))
+  plt.show()
+
+#------------------------------------
+# 
+# TODO: Load in the dataset, identify nans, and set proper headers.
+# Be sure to verify the rows line up by looking at the file in a text editor.
+#
+# .. your code here ..
+
+#loading dataframe
+X = pd.read_csv('/Users/lamahamadeh/Desktop/Python/Breast-Cancer/breast-cancer-data.txt')
+
+#renaming columns
+X.columns = ['sample', 'thickness', 'size', 'shape', 'adhesion', 'epithelial', 'nuclei', 'chromatin', 'nucleoli', 'mitoses', 'status']
+
+#print the first 7 raws of the dataframe
+print(X.head(5))
+print(X.dtypes)
 #it can be seen that the 'nuclei' column has an 'object' type where it has to be 'int'. Therefore, we need to change it to numeric value
-df.Bare_Nuclei = pd.to_numeric(df.Bare_Nuclei, errors = 'coerce')
+X.nuclei = pd.to_numeric(X.nuclei, errors = 'coerce')
+print(X.dtypes)
 
-df.drop(['id'], axis = 1, inplace = True) #this is an unwanted data and remove it
-#will increase the effiency and the accuracy of the classifier       
+#identify nans
+def num_missing(x):
+  return sum(x.isnull())
+#Applying per column:
+print ("Missing values per column:")
+print (X.apply(num_missing, axis=0)) #axis=0 defines that function is to be applied on each column
+#'nuclei' column has 16 nans.
+#------------------------------------
 
-print(df.head())
+# 
+# TODO: Copy out the status column into a slice, then drop it from the main
+# dataframe. You can also drop the sample column, since that doesn't provide
+# us with any machine learning power.
+#
+# .. your code here ..
 
-#Class distribution
-B = df[(df.Class == 2)] #Benign sub-dataset
-print('Benign: ', len(B), ',', (100*len(B))/len(df),'%')
+y = X['status'].copy()
 
-M = df[(df.Class == 4)]#Malignant sub-dataset
-print('Malignant: ', len(M), ',', (100*len(M))/len(df),'%')
-#-------------------------------
+X.drop(labels = ['sample', 'status'], inplace = True, axis = 1)
 
-#apply the K nearest neighbor classifier
-#seperate the data to train and test parts uisng cross_validation
-X = np.array(df.drop(['Class'], axis = 1)) #the rest of the dataset apart from 
-#the label column
-Y = np.array(df['Class']) #the label of the dataset
+#------------------------------------
+
+#
+# TODO: With the labels safely extracted from the dataset, replace any nan values
+# with the mean feature / column value
+#
+# .. your code here ..
+X.nuclei.fillna(X.nuclei.mean(), inplace = True)
+#X = X.fillna(method = 'backfill', axis = 1)
+
+#------------------------------------
+
+#
+# TODO: Experiment with the basic SKLearn preprocessing scalers. We know that
+# the features consist of different units mixed in together, so it might be
+# reasonable to assume feature scaling is necessary. Print out a description
+# of the dataset, post transformation.
+#
+# .. your code here ..
+
+from sklearn import preprocessing
+T = X #Having no normalising to the data values at all
+
+#We can use also MaxAbsScaler(), MinMaxScaler(), StandardScaler(), Normalizer(), RobustScaler() as other preprocessing methods
+#IMPORTANT NOTE
+#Just because you know _how_ to perform preprocessing scaling doesn't mandate it become a required step for every machine 
+#learning dataset. In the breast cancer dataset, from the description, it seems like all the data is already standardized 
+#from 1-10 (ints), so no further preprocessing is required. In fact, attempting to do so further brings down the predictive accuracy!
+#therefore, we still can use non of these methods and we get a correct approximation at the end.
+#------------------------------------
+#
+# PCA and Isomap are your new best friends
+model = None
+if Test_PCA:
+  print ("Computing 2D Principle Components")
+  #
+  # TODO: Implement PCA here. save your model into the variable 'model'.
+  # You should reduce down to two dimensions.
+  #
+  # .. your code here ..
+
+  model = PCA(n_components = 2)
+
+else:
+  print ("Computing 2D Isomap Manifold")
+  #
+  # TODO: Implement Isomap here. save your model into the variable 'model'
+  # Experiment with K values from 5-10.
+  # You should reduce down to two dimensions.
+  #
+  # .. your code here ..
+  model = manifold.Isomap(n_neighbors = 6, n_components = 2)
+
+#
+# TODO: Train your model against data_train, then transform both
+# data_train and data_test using your model. You can save the results right
+# back into the variables themselves.
+#
+# .. your code here ..
+
+X = model.fit_transform(T)
+#------------------------------------
+
+#
+# TODO: Do train_test_split. Use the same variable names as on the EdX platform in
+# the reading material, but set the random_state=7 for reproduceability, and keep
+# the test_size at 0.5 (50%).
+#
+# .. your code here ..
+
+from sklearn.cross_validation import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.5, random_state = 7)
 
 
+#------------------------------------
+# 
+# TODO: Implement and train KNeighborsClassifier on your projected 2D
+# training data here. You can use any K value from 1 - 15, so play around
+# with it and see what results you can come up. Your goal is to find a
+# good balance where you aren't too specific (low-K), nor are you too
+# general (high-K). You should also experiment with how changing the weights
+# parameter affects the results.
+#
+# .. your code here ..
 
-X_train, X_test, Y_train, Y_test = train_test_split (X, Y, test_size=0.5, random_state = 7)
+from sklearn.neighbors import KNeighborsClassifier
+knmodel = KNeighborsClassifier(n_neighbors = 3, weights = 'distance')
+knmodel.fit(X_train, y_train)
+#------------------------------------
+#
+# INFO: Be sure to always keep the domain of the problem in mind! It's
+# WAY more important to errantly classify a benign tumor as malignant,
+# and have it removed, than to incorrectly leave a malignant tumor, believing
+# it to be benign, and then having the patient progress in cancer. Since the UDF
+# weights don't give you any class information, the only way to introduce this
+# data into SKLearn's KNN Classifier is by "baking" it into your data. For
+# example, randomly reducing the ratio of benign samples compared to malignant
+# samples from the training set.
 
-#apply the knn method
-Knn = KNeighborsClassifier(n_neighbors = 2)
-#train the data
-Knn.fit(X_train,Y_train)
-#test the data
-accuracy = Knn.score(X_test, Y_test)#this to see how accurate the algorithm is in terms 
-#of defining the tumor to be either melignant or bengin
+#
+# TODO: Calculate + Print the accuracy of the testing set
+#
+# .. your code here ..
 
-print('accuracy of the model is: ', accuracy)
+print (knmodel.score(X_test, y_test)) #Compare how close the model's predictions for the test data's Ys were to the actual test data Ys.
+#95%
+plotDecisionBoundary(knmodel, X, y)
+#------------------------------------
 
-#-------------------------------
-
-#prediction
-#if I want to predict the class of only one measurement
-example_measures = np.array([4, 2, 1, 1, 1, 2, 3, 2, 1])
-example_measures = example_measures.reshape(1,-1)
-prediction = Knn.predict(example_measures)
-print('Prediction of the measures is: ', prediction)
-
-#if I have multiple measurements I need to predict their class
-example_measures = np.array([[4, 2, 1, 1, 1, 2, 3, 2, 1],[4, 2, 1, 1, 1, 2, 3, 2, 1]])
-example_measures = example_measures.reshape(len(example_measures),-1)
-prediction = Knn.predict(example_measures)
-print('Prediction of the measures is: ', prediction)
-
-#-------------------------------
-#Plotting and visualisation (focus on only two features from the dataset)
-
-X1 = np.array(df[['Single_Epi_Cell_Size','Mar_Adhesion']]) #choose only two features
-Y = np.array(df['Class']) #the label of the dataset
-
-h = .02  # step size in the mesh
- 
-# Create color maps
-cmap_light = ListedColormap(['#FFAAAA', '#AAAAFF'])
-cmap_bold = ListedColormap(['#FF0000', '#0000FF'])
-
-
-# apply Neighbours Classifier and fit the data.
-X_train, X_test, Y_train, Y_test = train_test_split (X1, Y, test_size=0.5, random_state = 7)
-Knn = KNeighborsClassifier(n_neighbors = 15)
-Knn.fit(X1, Y)
- 
-# Plot the decision boundary. For that, we will assign a color to each
-# point in the mesh [x_min, m_max]x[y_min, y_max].
-x_min, x_max = X1[:, 0].min() - 1, X1[:, 0].max() + 1
-y_min, y_max = X1[:, 1].min() - 1, X1[:, 1].max() + 1
-xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
-Z = Knn.predict(np.c_[xx.ravel(), yy.ravel()])
- 
-# Put the result into a color plot
-Z = Z.reshape(xx.shape)
-plt.figure()
-plt.pcolormesh(xx, yy, Z, cmap=cmap_light)
- 
-# Plot also the training points
-plt.scatter(X1[:, 0], X1[:, 1], c=Y, cmap=cmap_bold)
-plt.xlim(xx.min(), xx.max())
-plt.ylim(yy.min(), yy.max())
-plt.xlabel('Single_Epi_Cell_Size')
-plt.ylabel('Mar_Adhesion')
-plt.title('K = 15')
-
-plt.show()
-#-------------------------------
