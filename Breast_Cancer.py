@@ -23,7 +23,7 @@ import matplotlib
 #------------------------------------
 # If you'd like to try this lab with PCA instead of Isomap,
 # as the dimensionality reduction technique:
-Test_PCA = False
+Test_PCA = True
 
 
 def plotDecisionBoundary(model, X, y):
