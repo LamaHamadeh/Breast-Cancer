@@ -217,7 +217,7 @@ knmodel.fit(X_train, y_train)
 # .. your code here ..
 
 print (knmodel.score(X_test, y_test)) #Compare how close the model's predictions for the test data's Ys were to the actual test data Ys.
-#95%
+#96.5%
 plotDecisionBoundary(knmodel, X, y)
 #------------------------------------
 
